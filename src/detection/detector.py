@@ -15,7 +15,7 @@ def detect_pii_entities(block_text: str, file_meta: dict = None) -> List[Dict]:
         "EMAIL_ADDRESS": re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'),
         "EMP_ID": re.compile(r'EMP-\d{5}'),
         "PHONE_NUMBER": re.compile(
-            r'(?<!\w)(?:\+?1[\s.-]*)?\(?\d{3}\)?[\s.-]+\d{3}[\s.-]+\d{4}(?!\w)'
+            r'(?<!\d)(?:\+?1[\s.-]*)?(?:\(\d{3}\)|\d{3})[\s.-]*\d{3}[\s.-]*\d{4}(?!\d)'
         ),
         "DATE_OF_BIRTH": re.compile(r'DOB\s+\d{1,2}\s+\w+\s+\d{4}', re.I),
     }
@@ -56,7 +56,12 @@ def detect_pii_entities(block_text: str, file_meta: dict = None) -> List[Dict]:
         if first_word in excluded_first_words:
             continue
 
-        if "@" in block_text[max(0, m.start(1)-20):m.end(1)+20]:
+        if any(
+            f["type"] == "EMAIL_ADDRESS"
+            and f["start"] < m.end(1)
+            and m.start(1) < f["end"]
+            for f in findings
+        ):
             continue
 
         findings.append({
