@@ -51,11 +51,27 @@ def build_document(
     document_id: str,
     source_file: str,
     file_type: str,
+    extraction_errors: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Convert extractor blocks into the agreed nested document contract."""
+    """Convert extractor blocks into the nested contract, preserving failure status."""
     grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    errors: list[dict[str, str]] = []
+
+    for error in extraction_errors or []:
+        errors.append({
+            "code": "EXTRACTION_ERROR",
+            "block_id": str(error.get("block_id", "unknown")),
+            "message": "Extraction was incomplete; downstream processing is blocked.",
+        })
 
     for index, item in enumerate(extracted_blocks):
+        if item.get("extraction_error"):
+            errors.append({
+                "code": "EXTRACTION_ERROR",
+                "block_id": str(item.get("id", f"block-{index}")),
+                "message": "Extraction was incomplete; downstream processing is blocked.",
+            })
+
         text = item.get("text", "")
         if not isinstance(text, str):
             raise ValueError(f"Block {index} has non-string text")
@@ -118,9 +134,9 @@ def build_document(
         "document_id": document_id,
         "source_file": source_file,
         "file_type": file_type.lower(),
-        "status": "extracted",
+        "status": "failed" if errors else "extracted",
         "units": units,
-        "errors": [],
+        "errors": errors,
     }
 
 
@@ -130,12 +146,91 @@ def process_extracted_blocks(
     document_id: str,
     source_file: str,
     file_type: str,
+    extraction_errors: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Build, redact, and validate. Unsafe documents remain blocked."""
+    """Build, redact, and validate. Extraction errors block downstream processing."""
     document = build_document(
         extracted_blocks,
         document_id=document_id,
         source_file=source_file,
         file_type=file_type,
+        extraction_errors=extraction_errors,
     )
     return redact_document(document, residual_validator=residual_validator)
+
+
+
+def process_extraction_result(
+    extraction_result: dict[str, Any],
+    *,
+    document_id: str,
+    source_file: str,
+    file_type: str,
+) -> dict[str, Any]:
+    """Process extraction output and fail closed on incomplete or malformed input."""
+    malformed = not isinstance(extraction_result, dict)
+
+    if malformed:
+        extraction_result = {}
+
+    blocks = extraction_result.get("blocks")
+    errors = extraction_result.get("errors")
+    complete = extraction_result.get("complete")
+
+    if not isinstance(blocks, list) or not blocks:
+        malformed = True
+        blocks = []
+    elif any(not isinstance(block, dict) for block in blocks):
+        malformed = True
+
+    if not isinstance(errors, list):
+        malformed = True
+        errors = []
+
+    if complete is not True:
+        malformed = True
+
+    if malformed and not errors:
+        errors = [{
+            "block_id": "unknown",
+            "error": "Extraction result is incomplete or malformed",
+        }]
+
+    # Return no extracted content when upstream processing failed.
+    if errors:
+        return {
+            "schema_version": "1.0",
+            "metadata": {
+                "document_id": document_id,
+                "source_file": source_file,
+                "file_type": file_type,
+            },
+            "units": [],
+            "errors": [{
+                "code": "EXTRACTION_ERROR",
+                "block_id": str(
+                    error.get("block_id", "unknown")
+                    if isinstance(error, dict) else "unknown"
+                ),
+                "message": "Extraction was incomplete; downstream processing is blocked.",
+            } for error in errors],
+            "audit_events": [],
+            "validation": {
+                "passed": False,
+                "checks": [],
+                "issues": [{
+                    "code": "UPSTREAM_FAILURE",
+                    "message": "An upstream processing stage failed.",
+                }],
+            },
+            "status": "failed",
+            "safe_to_process": False,
+        }
+
+    return process_extracted_blocks(
+        blocks,
+        document_id=document_id,
+        source_file=source_file,
+        file_type=file_type,
+        extraction_errors=[],
+    )
