@@ -14,17 +14,37 @@ TYPE_MAP = {
     "PHONE_NUMBER": "PHONE",
     "PERSON": "PERSON",
     "DATE_OF_BIRTH": "DATE_OF_BIRTH",
+    "ACCOUNT_NUMBER": "ACCOUNT_NUMBER",
 }
 
 # This is a deliberately limited residual scan, not proof that all PII is gone.
 RESIDUAL_PATTERNS = {
+    "ADDRESS": re.compile(
+        r"\b(?:mailing|home|residential|street)\s+address\s*:"
+        r"\s*\d{1,6}\s+[^,\n]+(?:,\s*[^,\n]+){1,3}",
+        re.I,
+    ),
+    "PERSON": re.compile(
+        r"\b(?:customer\s+name|full\s+name|contact\s+name|employee\s+name)"
+        r"\s*:\s*(?!\[REDACTED:)[A-Z][a-z]+"
+        r"(?:\s+[A-Z]\.)?\s+[A-Z][a-z]+\b"
+        r"|\b[A-Z][a-z]+\s+[A-Z][a-z]+\s+"
+        r"(?:requested|asked|contacted|submitted|reported)\b"
+    ),
+    "ACCOUNT_NUMBER": re.compile(
+        r"\b(?:account\s*(?:number|no\.?|#)|acct\s*(?:number|no\.?|#))"
+        r"\s*[:#-]?\s*\d{6,20}\b", re.I
+    ),
     "EMAIL": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
     "EMPLOYEE_ID": re.compile(r"\bEMP-\d{5}\b", re.I),
     "PHONE": re.compile(
         r"(?<!\w)(?:\+?1[\s.-]*)?\(?\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}(?!\w)"
     ),
     "DATE_OF_BIRTH": re.compile(
-        r"\bDOB\s+\d{1,2}\s+\w+\s+\d{4}\b", re.I
+        r"\b(?:DOB|date\s+of\s+birth)\s*[:#-]?\s*"
+        r"(?:\d{1,2}\s+[A-Za-z]+\s+\d{4}"
+        r"|[A-Za-z]+\s+\d{1,2},?\s+\d{4}"
+        r"|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b", re.I
     ),
 }
 
