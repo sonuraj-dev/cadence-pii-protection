@@ -58,3 +58,20 @@ def test_all_detected_spans_are_valid():
         for item in detect_pii_entities(text):
             assert 0 <= item["start"] < item["end"] <= len(text)
             assert text[item["start"]:item["end"]].strip()
+
+
+def test_unformatted_ten_digit_phone_detected():
+    text = "Contact Alex Smith at alex.smith@example.com or call 6465550188."
+    assert "6465550188" in _matches(text, "PHONE_NUMBER")
+
+
+def test_person_detected_after_contact_prefix():
+    text = "Contact Alex Smith at alex.smith@example.com."
+    matches = _matches(text, "PERSON")
+    assert "Alex Smith" in matches
+    assert "Contact Alex" not in matches
+
+
+def test_twelve_digit_account_number_is_not_phone():
+    text = "Account number 123456789012"
+    assert _matches(text, "PHONE_NUMBER") == []
