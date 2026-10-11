@@ -7,4 +7,3 @@ __pycache__/
 !.env.example
 outputs/
 private_data/
-EOF

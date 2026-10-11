@@ -1,6 +1,6 @@
 """
 Cadence PII Protection - Extraction Engine
-Member 1: 481 blocks, 100% retention, structure preserved
+Extracts DOCX, PPTX, and PDF documents while preserving available structure.
 Handles: DOCX (native), PPTX (directory), PDF (scanned/mixed with OCR)
 """
 
@@ -32,7 +32,7 @@ except:
     Presentation = None
 
 def extract_docx_native(file_path: str, file_name: str) -> List[Dict]:
-    """Extract DOCX with structure - 313 blocks for TPRM Training"""
+    """Extract DOCX paragraphs and table cells while preserving their text."""
     blocks = []
     if Document is None:
         return blocks
@@ -71,7 +71,7 @@ def extract_docx_native(file_path: str, file_name: str) -> List[Dict]:
     return blocks
 
 def extract_pptx_directory(file_path: str, file_name: str) -> List[Dict]:
-    """Extract PPTX - 133 blocks"""
+    """Extract text-bearing PowerPoint shapes by slide."""
     blocks = []
     if Presentation is None:
         return blocks
@@ -135,7 +135,7 @@ def extract_pdf_mixed(file_path: str, file_name: str) -> List[Dict]:
                     ocr_error = f"OCR failed: {type(exc).__name__}"
 
             if ocr_text:
-                for para in re.split(r"\\n\\s*\\n", ocr_text):
+                for para in re.split(r"\n\s*\n", ocr_text):
                     para = para.strip()
                     if not para:
                         continue
@@ -165,31 +165,67 @@ def extract_pdf_mixed(file_path: str, file_name: str) -> List[Dict]:
     return blocks
 
 def extract_all_documents(docs_path: str = "/content/docs") -> Dict:
-    """Main extraction - returns 481 blocks"""
+    """Extract supported files and report incomplete extraction without hiding errors."""
     all_blocks = []
     reports = []
-
+    errors = []
     docs_path = Path(docs_path)
-    if not docs_path.exists():
-        docs_path = Path("/content")
 
-    # Find files
-    for file_path in docs_path.rglob("*"):
-        if file_path.name == "Cadence_TPRM_Training.docx":
-            blocks = extract_docx_native(str(file_path), file_path.name)
-            all_blocks.extend(blocks)
-            reports.append({"file": file_path.name, "blocks": len(blocks), "type": "PROCESS_DOCUMENT_NATIVE"})
-        elif file_path.name == "Cadence_Financial_Group_Organizational_Pack.pptx":
-            blocks = extract_pptx_directory(str(file_path), file_path.name)
-            all_blocks.extend(blocks)
-            reports.append({"file": file_path.name, "blocks": len(blocks), "type": "PRESENTATION_DIRECTORY"})
-        elif "Risk_Management" in file_path.name and file_path.suffix == ".pdf":
-            blocks = extract_pdf_mixed(str(file_path), file_path.name)
-            all_blocks.extend(blocks)
-            reports.append({"file": file_path.name, "blocks": len(blocks), "type": "POLICY_DOCUMENT_SCANNED_MIXED"})
+    if not docs_path.is_dir():
+        return {
+            "total_blocks": 0,
+            "blocks": [],
+            "reports": [],
+            "retention": None,
+            "retention_status": "not_measured_no_reference_text",
+            "errors": [{
+                "block_id": "input",
+                "error": "Input directory is missing or invalid",
+            }],
+            "complete": False,
+        }
 
-    total = len(all_blocks)
-    errors = [
+    extractors = {
+        ".docx": (extract_docx_native, "PROCESS_DOCUMENT_NATIVE"),
+        ".pptx": (extract_pptx_directory, "PRESENTATION_DIRECTORY"),
+        ".pdf": (extract_pdf_mixed, "POLICY_DOCUMENT_SCANNED_MIXED"),
+    }
+
+    for file_path in sorted(docs_path.rglob("*")):
+        if not file_path.is_file() or file_path.name.startswith("~$"):
+            continue
+
+        extractor_info = extractors.get(file_path.suffix.lower())
+        if extractor_info is None:
+            continue
+
+        extractor, document_type = extractor_info
+        relative_name = str(file_path.relative_to(docs_path))
+
+        try:
+            blocks = extractor(str(file_path), file_path.name)
+        except Exception as exc:
+            errors.append({
+                "block_id": relative_name,
+                "error": f"Document extraction failed: {type(exc).__name__}",
+            })
+            reports.append({
+                "file": relative_name,
+                "blocks": 0,
+                "type": document_type,
+                "status": "failed",
+            })
+            continue
+
+        all_blocks.extend(blocks)
+        reports.append({
+            "file": relative_name,
+            "blocks": len(blocks),
+            "type": document_type,
+            "status": "extracted",
+        })
+
+    errors.extend(
         {
             "block_id": block["id"],
             "page_slide": block.get("page_slide"),
@@ -197,16 +233,24 @@ def extract_all_documents(docs_path: str = "/content/docs") -> Dict:
         }
         for block in all_blocks
         if block.get("extraction_error")
-    ]
+    )
+
+    if not reports:
+        errors.append({
+            "block_id": "input",
+            "error": "No supported PDF, DOCX, or PPTX documents were found",
+        })
+
     return {
-        "total_blocks": total,
+        "total_blocks": len(all_blocks),
         "blocks": all_blocks,
         "reports": reports,
         "retention": None,
         "retention_status": "not_measured_no_reference_text",
         "errors": errors,
-        "complete": not errors,
+        "complete": bool(reports) and not errors,
     }
+
 
 # For backward compatibility
 def extract_documents(*args, **kwargs):
