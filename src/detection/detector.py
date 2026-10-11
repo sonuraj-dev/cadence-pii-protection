@@ -1,92 +1,97 @@
 import re
-from typing import List, Dict
+from typing import Dict, List
+
 
 def detect_pii_entities(block_text: str, file_meta: dict = None) -> List[Dict]:
-    """
-    PII Detector - schema: type,start,end,confidence,method
-    Ready for Member 3 redaction
-    """
+    """Detect labelled PII and conservative contextual person names."""
+    if not isinstance(block_text, str) or not block_text:
+        return []
+
     findings = []
-    if not block_text:
-        return findings
 
-    # Regex patterns
-    patterns = {
-        "EMAIL_ADDRESS": re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'),
-        "EMP_ID": re.compile(r'EMP-\d{5}'),
-        "PHONE_NUMBER": re.compile(
-            r'(?<!\d)(?:\+?1[\s.-]*)?(?:\(\d{3}\)|\d{3})[\s.-]*\d{3}[\s.-]*\d{4}(?!\d)'
-        ),
-        "DATE_OF_BIRTH": re.compile(r'DOB\s+\d{1,2}\s+\w+\s+\d{4}', re.I),
-    }
-
-    # EMAIL
-    for m in patterns["EMAIL_ADDRESS"].finditer(block_text):
-        findings.append({"type": "EMAIL_ADDRESS", "start": m.start(), "end": m.end(), "confidence": 1.0, "method": "regex_email_address"})
-
-    # EMP_ID
-    for m in patterns["EMP_ID"].finditer(block_text):
-        findings.append({"type": "EMP_ID", "start": m.start(), "end": m.end(), "confidence": 0.9, "method": "regex_emp_id"})
-
-    # PHONE
-    for m in patterns["PHONE_NUMBER"].finditer(block_text):
-        # Avoid overlapping with EMAIL
-        if not any(f["start"] <= m.start() < f["end"] for f in findings):
-            findings.append({"type": "PHONE_NUMBER", "start": m.start(), "end": m.end(), "confidence": 0.85, "method": "regex_phone_number"})
-
-    # DOB
-    for m in patterns["DATE_OF_BIRTH"].finditer(block_text):
-        findings.append({"type": "DATE_OF_BIRTH", "start": m.start(), "end": m.end(), "confidence": 0.7, "method": "regex_date_of_birth"})
-
-
-    # PERSON - conservative name detection.
-    person_pattern = re.compile(
-        r"(?=([A-Z][a-z]{1,}\s+(?:[A-Z]\.\s+)?[A-Z][a-z]{1,}))"
-    )
-
-    excluded_first_words = {
-        "Contact", "Employee", "Account", "Phone", "Email",
-        "Call", "Please", "Department", "Policy", "Date",
-    }
-
-    for m in person_pattern.finditer(block_text):
-        name = m.group(1)
-        first_word = name.split()[0].rstrip(".")
-
-        if first_word in excluded_first_words:
-            continue
-
-        if any(
-            f["type"] == "EMAIL_ADDRESS"
-            and f["start"] < m.end(1)
-            and m.start(1) < f["end"]
-            for f in findings
-        ):
-            continue
-
+    def add(kind, match, confidence, method):
         findings.append({
-            "type": "PERSON",
-            "start": m.start(1),
-            "end": m.end(1),
-            "confidence": 0.75,
-            "method": "conservative_name_pattern",
+            "type": kind,
+            "start": match.start(),
+            "end": match.end(),
+            "confidence": confidence,
+            "method": method,
         })
 
-    # Deduplicate overlapping - keep highest confidence, earliest start
-    findings = sorted(findings, key=lambda x: (x["start"], -x["confidence"]))
-    deduped = []
-    for f in findings:
-        if not any(d["start"] <= f["start"] < d["end"] and d["type"] == f["type"] for d in deduped):
-            # Remove duplicate phone with same start
-            if f["type"] == "PHONE_NUMBER" and any(d["type"]=="PHONE_NUMBER" and d["start"]==f["start"] for d in deduped):
+    patterns = {
+        "EMAIL_ADDRESS": re.compile(
+            r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+        ),
+        "EMP_ID": re.compile(r"\bEMP-\d{5}\b", re.I),
+        "PHONE_NUMBER": re.compile(
+            r"(?<!\d)(?:\+?1[\s.-]*)?"
+            r"(?:\(\d{3}\)|\d{3})[\s.-]*\d{3}[\s.-]*\d{4}(?!\d)"
+            r"|(?<!\d)\d{10}(?!\d)"
+        ),
+        "ACCOUNT_NUMBER": re.compile(
+            r"\b(?:account\s*(?:number|no\.?|#)|acct\s*(?:number|no\.?|#))"
+            r"\s*[:#-]?\s*\d{6,20}\b",
+            re.I,
+        ),
+        "DATE_OF_BIRTH": re.compile(
+            r"\b(?:DOB|date\s+of\s+birth)\s*[:#-]?\s*"
+            r"(?:\d{1,2}\s+[A-Za-z]+\s+\d{4}"
+            r"|[A-Za-z]+\s+\d{1,2},?\s+\d{4}"
+            r"|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b",
+            re.I,
+        ),
+    }
+
+    type_confidence = {
+        "EMAIL_ADDRESS": (1.0, "regex_email_address"),
+        "EMP_ID": (0.9, "regex_emp_id"),
+        "PHONE_NUMBER": (0.85, "regex_phone_number"),
+        "ACCOUNT_NUMBER": (0.95, "labelled_account_number"),
+        "DATE_OF_BIRTH": (0.95, "labelled_date_of_birth"),
+    }
+
+    for kind, pattern in patterns.items():
+        confidence, method = type_confidence[kind]
+        for match in pattern.finditer(block_text):
+            add(kind, match, confidence, method)
+
+    # Only identify names in clear contexts. Avoid treating arbitrary
+    # capitalized heading/address words as person names.
+    name = r"[A-Z][a-z]{1,}(?:[-'][A-Z]?[a-z]{1,})?"
+    full_name = rf"{name}(?:\s+[A-Z]\.)?\s+{name}"
+
+    contextual_patterns = [
+        re.compile(
+            rf"\b(?:customer\s+name|full\s+name|contact|employee\s+name)"
+            rf"\s*:\s*({full_name})",
+            re.I,
+        ),
+        re.compile(rf"\bContact\s+({full_name})\b"),
+        re.compile(rf"(?m)^\s*({full_name})\s+is\s+an?\s+employee\b"),
+    ]
+
+    for pattern in contextual_patterns:
+        for match in pattern.finditer(block_text):
+            start, end = match.span(1)
+            # Do not overlap an already identified email, phone, or other PII.
+            if any(
+                item["start"] < end and start < item["end"]
+                for item in findings
+            ):
                 continue
-            deduped.append(f)
+            findings.append({
+                "type": "PERSON",
+                "start": start,
+                "end": end,
+                "confidence": 0.85,
+                "method": "contextual_person_name",
+            })
 
-    return sorted(deduped, key=lambda x: x["start"])
+    # Remove exact duplicates; overlapping different entity types are left
+    # for the pipeline's existing fail-closed span validation.
+    unique = {}
+    for item in findings:
+        key = (item["type"], item["start"], item["end"])
+        unique[key] = item
 
-# Test
-if __name__ == "__main__":
-    for t in ["Marguerite Vossberg m.vossberg@cadencefg.example M +1 (555) 0114",
-              "Naomi K. Osadebe (EMP-41077, n.osadebe@cadencefg.com, +1 (646) 555-0188)",
-              "Daniela Figueroa Bridgett Gatewood KC Burney"]:
-        print(f"\nInput: {t}\n{detect_pii_entities(t)}")
+    return sorted(unique.values(), key=lambda item: (item["start"], item["end"]))
