@@ -1,8 +1,9 @@
 # Cadence PII Protection — Frontend setup
 
 ## Files
-- `app.py`: Streamlit dashboard.
-- `frontend_adapter.py`: thin adapter that calls the existing extraction and integration pipeline in `src/`.
+- `app.py`: simple launcher for the Streamlit dashboard.
+- `src/frontend/app.py`: Streamlit dashboard UI.
+- `src/frontend/frontend_adapter.py`: thin adapter that calls the existing extraction and integration pipeline in `src/`.
 - `FRONTEND_README.md`: these setup instructions.
 
 ## Prerequisites
@@ -50,7 +51,7 @@ From repository root:
 
 ```bash
 .venv/bin/python -m pytest -q
-.venv/bin/python -m compileall -q src tests app.py frontend_adapter.py
+.venv/bin/python -m compileall -q src tests app.py
 .venv/bin/python -m pip check
 git diff --check
 ```
