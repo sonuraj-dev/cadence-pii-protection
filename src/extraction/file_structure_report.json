@@ -1,0 +1,35 @@
+[
+  {
+    "file_name": "Cadence_TPRM_Training.docx",
+    "file_path": "/content/cadence_files/Cadence_TPRM_Training.docx",
+    "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "extension": ".docx",
+    "size_kb": 4717.08,
+    "category": "PROCESS_DOCUMENT_NATIVE",
+    "text_density": 0,
+    "is_scanned": false,
+    "extraction_strategy": "NATIVE"
+  },
+  {
+    "file_name": "Cadence_Financial_Group_Organizational_Pack.pptx",
+    "file_path": "/content/cadence_files/Cadence_Financial_Group_Organizational_Pack.pptx",
+    "mime_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "extension": ".pptx",
+    "size_kb": 70.35,
+    "category": "PRESENTATION_DIRECTORY",
+    "text_density": 0,
+    "is_scanned": false,
+    "extraction_strategy": "OCR_FALLBACK"
+  },
+  {
+    "file_name": "Cadence_Group_Risk_Management_Policy__v6.0.pdf",
+    "file_path": "/content/cadence_files/Cadence_Group_Risk_Management_Policy__v6.0.pdf",
+    "mime_type": "application/pdf",
+    "extension": ".pdf",
+    "size_kb": 13764.64,
+    "category": "POLICY_DOCUMENT_SCANNED_MIXED",
+    "text_density": 0.17142857142857143,
+    "is_scanned": true,
+    "extraction_strategy": "OCR_FALLBACK"
+  }
+]
