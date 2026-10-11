@@ -38,7 +38,7 @@ def detect_pii_entities(block_text: str, file_meta: dict = None) -> List[Dict]:
     for m in patterns["DATE_OF_BIRTH"].finditer(block_text):
         findings.append({"type": "DATE_OF_BIRTH", "start": m.start(), "end": m.end(), "confidence": 0.7, "method": "regex_date_of_birth"})
 
-   
+
     # PERSON - conservative name detection.
     person_pattern = re.compile(
         r"(?=([A-Z][a-z]{1,}\s+(?:[A-Z]\.\s+)?[A-Z][a-z]{1,}))"
