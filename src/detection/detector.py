@@ -46,7 +46,7 @@ _CONTEXT_PERSON_PATTERNS = [
         rf"\b(?:customer\s+name|full\s+name|contact(?:\s+name)?|employee\s+name|patient\s+name|"
         rf"account\s+holder|policy\s+holder|prepared\s+by|submitted\s+by|requested\s+by|"
         rf"applicant\s+name|escalation\s+contact|assessed\s+by)\s*[:=-]\s*(?P<value>{_PERSON_NAME})\b", re.I),
-    re.compile(rf"\bContact\s+(?P<value>{_PERSON_NAME})\b(?!\s+(?:at|on|in|for|from|with|and|is|was|has|will|to)\b)", re.I),
+    re.compile(rf"\bContact\s+(?P<value>{_PERSON_NAME})\b", re.I),
     re.compile(
         rf"(?m)(?:^|[.!?]\s+|\bInternal note:\s*)(?P<value>{_PERSON_NAME})\s+"
         r"(?:is|was|has|will be|serves as)\s+(?:an?\s+)?"
