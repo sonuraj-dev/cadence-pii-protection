@@ -51,6 +51,17 @@ RESIDUAL_PATTERNS = {
         r"|[A-Za-z]+\s+\d{1,2},?\s+\d{4}"
         r"|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b", re.I
     ),
+
+    "SSN": re.compile(
+        r"\b(?:SSN|social\s+security(?:\s+number)?)\s*[:#=-]?\s*"
+        r"\d{3}[- ]?\d{2}[- ]?\d{4}\b|\b\d{3}-\d{2}-\d{4}\b", re.I
+    ),
+    "PAYMENT_CARD": re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)"),
+    "IBAN": re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b", re.I),
+    "IP_ADDRESS": re.compile(
+        r"\b(?:IP(?:v4)?(?:\s+address)?|client\s+IP)\s*[:#=-]?\s*"
+        r"(?:\d{1,3}\.){3}\d{1,3}\b", re.I
+    ),
 }
 
 
