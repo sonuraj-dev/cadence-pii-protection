@@ -15,6 +15,11 @@ TYPE_MAP = {
     "PERSON": "PERSON",
     "DATE_OF_BIRTH": "DATE_OF_BIRTH",
     "ACCOUNT_NUMBER": "ACCOUNT_NUMBER",
+    "SSN": "SSN",
+    "PAYMENT_CARD": "PAYMENT_CARD",
+    "IBAN": "IBAN",
+    "ADDRESS": "ADDRESS",
+    "IP_ADDRESS": "IP_ADDRESS",
 }
 
 # This is a deliberately limited residual scan, not proof that all PII is gone.
