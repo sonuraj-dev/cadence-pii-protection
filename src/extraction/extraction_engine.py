@@ -64,7 +64,6 @@ def extract_docx_native(file_path: str, file_name: str) -> List[Dict]:
     # OCR embedded pictures; image text must enter the same downstream PII pipeline.
     for image_index, shape in enumerate(doc.inline_shapes):
         try:
-            image_text = _ocr_image_bytes(shape._inline.graphic.graphicData.pic.blipFill.blip.embed.encode("utf-8")) if False else ""
             image_part = shape._inline.graphic.graphicData.pic.blipFill.blip
             rel_id = image_part.embed
             image_bytes = doc.part.related_parts[rel_id].blob
