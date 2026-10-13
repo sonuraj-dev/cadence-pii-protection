@@ -90,3 +90,42 @@ def test_residual_validator_does_not_echo_sensitive_values():
     document = {"units": [{"blocks": [{"block_id": "b1", "text": "SSN: 123-45-6789"}]}]}
     findings = residual_validator(document)
     assert all("123-45-6789" not in str(item) for item in findings)
+
+
+def test_employee_label_does_not_get_redacted_instead_of_identifier():
+    text = "Employee ID EMP-41077"
+    found = [text[item["start"]:item["end"]] for item in detect_pii_entities(text) if item["type"] == "EMP_ID"]
+    assert found == ["EMP-41077"]
+
+
+def test_ocr_spaced_email_and_period_employee_id():
+    text = "n.osadebe @cadencefg.com; Tobias Lindgvist (EMP.40522)"
+    findings = detect_pii_entities(text)
+    values = [(item["type"], text[item["start"]:item["end"]]) for item in findings]
+    assert ("EMAIL_ADDRESS", "n.osadebe @cadencefg.com") in values
+    assert ("EMP_ID", "EMP.40522") in values
+
+
+def test_contextual_names_in_narrative_and_labelled_rows():
+    narrative = "Naomi K. Osadebe is an employee."
+    row = "Contact: Mireille Dubois-Kane | Escalation"
+    assert "Naomi K. Osadebe" in spans(narrative, "PERSON")
+    assert "Mireille Dubois-Kane" in spans(row, "PERSON")
+    assert spans("Synthetic Customer Record", "PERSON") == []
+
+
+def test_country_specific_ids_require_labels_and_format():
+    pan_text = "PAN: ABCDE1234F"
+    pesel_text = "PESEL: 44051401458"
+    tin_text = "TIN: TX-123456"
+    assert any(x["type"] == "PAN" for x in detect_pii_entities(pan_text))
+    assert any(x["type"] == "PESEL" for x in detect_pii_entities(pesel_text))
+    assert any(x["type"] == "TIN" for x in detect_pii_entities(tin_text))
+    assert not any(x["type"] == "PAN" for x in detect_pii_entities("Reference ABCDE1234F"))
+
+
+def test_residual_validator_catches_ocr_email_employee_id_and_labelled_ids():
+    document = {"units": [{"blocks": [{"block_id": "b1", "text":
+        "n.osadebe @cadencefg.com EMP.40522 PAN: ABCDE1234F"}]}]}
+    kinds = {item["type"] for item in residual_validator(document)}
+    assert {"EMAIL", "EMPLOYEE_ID", "PAN"} <= kinds
