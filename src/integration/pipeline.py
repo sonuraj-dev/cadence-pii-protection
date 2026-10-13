@@ -15,37 +15,47 @@ TYPE_MAP = {
     "PERSON": "PERSON",
     "DATE_OF_BIRTH": "DATE_OF_BIRTH",
     "ACCOUNT_NUMBER": "ACCOUNT_NUMBER",
+    "SSN": "SSN",
+    "PAYMENT_CARD": "PAYMENT_CARD",
+    "IBAN": "IBAN",
+    "ADDRESS": "ADDRESS",
+    "IP_ADDRESS": "IP_ADDRESS",
 }
 
 # This is a deliberately limited residual scan, not proof that all PII is gone.
+# Independent post-redaction scans for common PII leftovers. Findings never include matched values.
 RESIDUAL_PATTERNS = {
     "ADDRESS": re.compile(
-        r"\b(?:mailing|home|residential|street)\s+address\s*:"
-        r"\s*\d{1,6}\s+[^,\n]+(?:,\s*[^,\n]+){1,3}",
-        re.I,
-    ),
+        r"\b(?:mailing|home|residential|street|billing|postal)\s+address\s*[:#=-]?\s*"
+        r"\d{1,6}\s+[^,\n]+(?:,\s*[^,\n]+){1,3}", re.I),
     "PERSON": re.compile(
-        r"\b(?:customer\s+name|full\s+name|contact\s+name|employee\s+name)"
-        r"\s*:\s*(?!\[REDACTED:)[A-Z][a-z]+"
-        r"(?:\s+[A-Z]\.)?\s+[A-Z][a-z]+\b"
-        r"|\b[A-Z][a-z]+\s+[A-Z][a-z]+\s+"
-        r"(?:requested|asked|contacted|submitted|reported)\b"
-    ),
+        r"\b(?:customer\s+name|full\s+name|contact(?:\s+name)?|employee\s+name|"
+        r"patient\s+name|account\s+holder|policy\s+holder|prepared\s+by|submitted\s+by|"
+        r"requested\s+by|applicant\s+name|escalation\s+contact|assessed\s+by)"
+        r"\s*[:=-]\s*(?!\[REDACTED:)[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+"
+        r"(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?(?:\s+[A-ZÀ-ÖØ-Þ]\.)?"
+        r"\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?"
+        r"|\b[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?(?:\s+[A-ZÀ-ÖØ-Þ]\.)?\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+ "
+        r"(?:requested|asked|contacted|submitted|reported)\b", re.I),
     "ACCOUNT_NUMBER": re.compile(
         r"\b(?:account\s*(?:number|no\.?|#)|acct\s*(?:number|no\.?|#))"
-        r"\s*[:#-]?\s*\d{6,20}\b", re.I
-    ),
-    "EMAIL": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"),
-    "EMPLOYEE_ID": re.compile(r"\bEMP-\d{5}\b", re.I),
+        r"\s*[:#=-]?\s*(?:[Xx*•-]{0,4}\s*)?(?:\d[ \t-]?){6,19}\d\b", re.I),
+    "EMAIL": re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_{|}~-]+\s*@\s*[A-Za-z0-9-]+(?:\s*\.\s*[A-Za-z0-9-]+)+", re.I),
+    "EMPLOYEE_ID": re.compile(r"\bEMP[-_. ]\d{3,12}\b", re.I),
     "PHONE": re.compile(
-        r"(?<!\w)(?:\+?1[\s.-]*)?\(?\d{3}\)?[\s.-]*\d{3}[\s.-]*\d{4}(?!\w)"
-    ),
+        r"(?<!\w)(?:\+\s?\d{1,3}[\s().-]*)?(?:\(\s?\d{2,5}\s?\)|\d{2,5})"
+        r"(?:[\s().-]*\d{2,5}){1,4}(?!\w)", re.I),
     "DATE_OF_BIRTH": re.compile(
-        r"\b(?:DOB|date\s+of\s+birth)\s*[:#-]?\s*"
-        r"(?:\d{1,2}\s+[A-Za-z]+\s+\d{4}"
-        r"|[A-Za-z]+\s+\d{1,2},?\s+\d{4}"
-        r"|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b", re.I
-    ),
+        r"\b(?:DOB|D\.O\.B\.?|date\s+of\s+birth|birth\s+date)\s*[:#=-]?\s*"
+        r"(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|"
+        r"\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},?\s+\d{4})", re.I),
+    "SSN": re.compile(r"\b(?:SSN|social\s+security(?:\s+number)?)\s*[:#=-]?\s*\d{3}[- ]?\d{2}[- ]?\d{4}\b", re.I),
+    "PAYMENT_CARD": re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)"),
+    "IBAN": re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b", re.I),
+    "IP_ADDRESS": re.compile(r"\b(?:IP(?:v4)?(?:\s+address)?|client\s+IP)\s*[:#=-]?\s*(?:\d{1,3}\.){3}\d{1,3}\b", re.I),
+    "PAN": re.compile(r"\b(?:PAN(?:\s*(?:number|no\.?))?|permanent\s+account\s+number)\s*[:#=-]?\s*[A-Z]{5}\d{4}[A-Z]\b", re.I),
+    "PESEL": re.compile(r"\bPESEL(?:\s*(?:number|no\.?))?\s*[:#=-]?\s*\d{11}\b", re.I),
+    "TIN": re.compile(r"\b(?:TIN|tax\s+identification(?:\s+number)?|taxpayer\s+ID)\s*[:#=-]?\s*[A-Z0-9][A-Z0-9-]{5,19}\b", re.I),
 }
 
 

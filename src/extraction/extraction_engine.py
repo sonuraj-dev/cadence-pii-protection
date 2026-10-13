@@ -6,6 +6,7 @@ Handles: DOCX (native), PPTX (directory), PDF (scanned/mixed with OCR)
 
 import os
 import re
+import io
 
 try:
     import pytesseract
@@ -31,6 +32,14 @@ try:
 except:
     Presentation = None
 
+def _ocr_image_bytes(image_bytes: bytes) -> str:
+    """OCR an embedded image with local Tesseract; empty output is not treated as safe."""
+    if pytesseract is None or Image is None:
+        raise RuntimeError("OCR dependencies unavailable")
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    return pytesseract.image_to_string(image).strip()
+
+
 def extract_docx_native(file_path: str, file_name: str) -> List[Dict]:
     """Extract DOCX paragraphs and table cells while preserving their text."""
     blocks = []
@@ -52,6 +61,37 @@ def extract_docx_native(file_path: str, file_name: str) -> List[Dict]:
             "char_count": len(text)
         })
         block_id += 1
+    # OCR embedded pictures; image text must enter the same downstream PII pipeline.
+    for image_index, shape in enumerate(doc.inline_shapes):
+        try:
+            image_part = shape._inline.graphic.graphicData.pic.blipFill.blip
+            rel_id = image_part.embed
+            image_bytes = doc.part.related_parts[rel_id].blob
+            image_text = _ocr_image_bytes(image_bytes)
+            if image_text:
+                blocks.append({
+                    "id": f"{file_name}_image{image_index}_{block_id}",
+                    "file": file_name, "type": "PROCESS_DOCUMENT_OCR",
+                    "text": image_text, "page_slide": 1, "block_type": "DOCX_OCR",
+                    "char_count": len(image_text),
+                })
+            else:
+                blocks.append({
+                    "id": f"{file_name}_image{image_index}_{block_id}",
+                    "file": file_name, "type": "PROCESS_DOCUMENT_OCR", "text": "",
+                    "page_slide": 1, "block_type": "OCR_UNAVAILABLE", "char_count": 0,
+                    "extraction_error": "Embedded image OCR produced no text; review required",
+                })
+            block_id += 1
+        except Exception as exc:
+            blocks.append({
+                "id": f"{file_name}_image{image_index}_{block_id}",
+                "file": file_name, "type": "PROCESS_DOCUMENT_OCR", "text": "",
+                "page_slide": 1, "block_type": "OCR_UNAVAILABLE", "char_count": 0,
+                "extraction_error": f"Embedded image OCR failed: {type(exc).__name__}",
+            })
+            block_id += 1
+
     # Tables
     for table in doc.tables:
         for row in table.rows:
@@ -79,6 +119,35 @@ def extract_pptx_directory(file_path: str, file_name: str) -> List[Dict]:
     block_id = 0
     for slide_idx, slide in enumerate(prs.slides, 1):
         for shape in slide.shapes:
+            # OCR picture shapes in addition to their native text.
+            if getattr(shape, "shape_type", None) == 13:
+                try:
+                    image_text = _ocr_image_bytes(shape.image.blob)
+                    if image_text:
+                        blocks.append({
+                            "id": f"{file_name}_slide{slide_idx}_image{block_id}",
+                            "file": file_name, "type": "PRESENTATION_OCR",
+                            "text": image_text, "page_slide": slide_idx,
+                            "block_type": "PPTX_OCR", "char_count": len(image_text),
+                        })
+                    else:
+                        blocks.append({
+                            "id": f"{file_name}_slide{slide_idx}_image{block_id}",
+                            "file": file_name, "type": "PRESENTATION_OCR", "text": "",
+                            "page_slide": slide_idx, "block_type": "OCR_UNAVAILABLE",
+                            "char_count": 0,
+                            "extraction_error": "Embedded slide image OCR produced no text; review required",
+                        })
+                    block_id += 1
+                except Exception as exc:
+                    blocks.append({
+                        "id": f"{file_name}_slide{slide_idx}_image{block_id}",
+                        "file": file_name, "type": "PRESENTATION_OCR", "text": "",
+                        "page_slide": slide_idx, "block_type": "OCR_UNAVAILABLE",
+                        "char_count": 0,
+                        "extraction_error": f"Embedded slide image OCR failed: {type(exc).__name__}",
+                    })
+                    block_id += 1
             if hasattr(shape, "text") and shape.text.strip():
                 text = shape.text.strip()
                 blocks.append({
@@ -103,7 +172,40 @@ def extract_pdf_mixed(file_path: str, file_name: str) -> List[Dict]:
     for page_idx, page in enumerate(doc, 1):
         text = page.get_text("text").strip()
         if text:
-            # Split into paragraphs to preserve structure
+            # Split native text into blocks; OCR pictures too because pages can mix text and screenshots.
+            # Image OCR blocks flow through the same downstream detection/redaction/validation path.
+            for image_info in page.get_images(full=True):
+                xref = image_info[0]
+                try:
+                    image_data = doc.extract_image(xref)
+                    image_text = _ocr_image_bytes(image_data["image"])
+                    if image_text:
+                        blocks.append({
+                            "id": f"{file_name}_page{page_idx}_image{block_id}",
+                            "file": file_name, "type": "POLICY_DOCUMENT_OCR",
+                            "text": image_text, "page_slide": page_idx,
+                            "block_type": "PDF_EMBEDDED_IMAGE_OCR",
+                            "char_count": len(image_text),
+                        })
+                    else:
+                        blocks.append({
+                            "id": f"{file_name}_page{page_idx}_image{block_id}",
+                            "file": file_name, "type": "POLICY_DOCUMENT_OCR", "text": "",
+                            "page_slide": page_idx, "block_type": "OCR_UNAVAILABLE",
+                            "char_count": 0,
+                            "extraction_error": "Embedded PDF image OCR produced no text; review required",
+                        })
+                    block_id += 1
+                except Exception as exc:
+                    blocks.append({
+                        "id": f"{file_name}_page{page_idx}_image{block_id}",
+                        "file": file_name, "type": "POLICY_DOCUMENT_OCR", "text": "",
+                        "page_slide": page_idx, "block_type": "OCR_UNAVAILABLE",
+                        "char_count": 0,
+                        "extraction_error": f"Embedded PDF image OCR failed: {type(exc).__name__}",
+                    })
+                    block_id += 1
+            # Split native text into paragraphs to preserve structure
             for para in re.split(r'\n\s*\n', text):
                 para = para.strip()
                 if len(para) > 10:
