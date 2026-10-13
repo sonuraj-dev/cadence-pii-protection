@@ -5,7 +5,7 @@ from typing import Any
 
 _NAME = r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)*"
 _INITIAL = r"[A-ZÀ-ÖØ-Þ]\."
-_PERSON_NAME = rf"{_NAME}(?:\s+(?:{_INITIAL}\s*)?{_NAME}){1,3}"
+_PERSON_NAME = rf"{_NAME}(?:\s+{_INITIAL})?(?:\s+{_NAME}){1,2}"
 _DATE = (r"(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|"
          r"\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},?\s+\d{4})")
 _ACCOUNT_LABEL = r"(?:account\s*(?:number|no\.?|#)|acct\s*(?:number|no\.?|#))"
@@ -46,9 +46,9 @@ _CONTEXT_PERSON_PATTERNS = [
         rf"\b(?:customer\s+name|full\s+name|contact(?:\s+name)?|employee\s+name|patient\s+name|"
         rf"account\s+holder|policy\s+holder|prepared\s+by|submitted\s+by|requested\s+by|"
         rf"applicant\s+name|escalation\s+contact|assessed\s+by)\s*[:=-]\s*(?P<value>{_PERSON_NAME})\b", re.I),
-    re.compile(rf"\bContact\s+(?P<value>{_PERSON_NAME})\b"),
+    re.compile(rf"\bContact\s+(?P<value>{_PERSON_NAME})\b", re.I),
     re.compile(
-        rf"(?m)(?:^|[.!?]\s+)(?P<value>{_PERSON_NAME})\s+"
+        rf"(?m)(?:^|[.!?]\s+|\bInternal note:\s*)(?P<value>{_PERSON_NAME})\s+"
         r"(?:is|was|has|will be|serves as)\s+(?:an?\s+)?"
         r"(?:employee|customer|patient|applicant|officer|assessor|owner|manager|contact)\b", re.I),
     re.compile(rf"\b(?:Mr|Mrs|Ms|Miss|Dr|Prof)\.?\s+(?P<value>{_PERSON_NAME})\b", re.I),
