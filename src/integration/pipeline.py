@@ -34,7 +34,9 @@ RESIDUAL_PATTERNS = {
         r"requested\s+by|applicant\s+name|escalation\s+contact|assessed\s+by)"
         r"\s*[:=-]\s*(?!\[REDACTED:)[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+"
         r"(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?(?:\s+[A-ZÀ-ÖØ-Þ]\.)?"
-        r"\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?", re.I),
+        r"\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?"
+        r"|\b[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)?(?:\s+[A-ZÀ-ÖØ-Þ]\.)?\s+[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+ "
+        r"(?:requested|asked|contacted|submitted|reported)\b", re.I),
     "ACCOUNT_NUMBER": re.compile(
         r"\b(?:account\s*(?:number|no\.?|#)|acct\s*(?:number|no\.?|#))"
         r"\s*[:#=-]?\s*(?:[Xx*•-]{0,4}\s*)?(?:\d[ \t-]?){6,19}\d\b", re.I),
