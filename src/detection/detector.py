@@ -5,7 +5,7 @@ from typing import Any
 
 _NAME = r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ]+(?:[-'][A-ZÀ-ÖØ-Þ]?[a-zà-öø-ÿ]+)*"
 _INITIAL = r"[A-ZÀ-ÖØ-Þ]\."
-_PERSON_NAME = rf"{_NAME}(?:\s+{_INITIAL})?(?:\s+{_NAME}){1,2}"
+_PERSON_NAME = rf"{_NAME}(?:\s+{_INITIAL})?(?:\s+{_NAME}){{1,2}}"
 _DATE = (r"(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|"
          r"\d{1,2}\s+[A-Za-z]+\s+\d{4}|[A-Za-z]+\s+\d{1,2},?\s+\d{4})")
 _ACCOUNT_LABEL = r"(?:account\s*(?:number|no\.?|#)|acct\s*(?:number|no\.?|#))"
